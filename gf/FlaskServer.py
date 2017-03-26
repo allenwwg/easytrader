@@ -2,7 +2,16 @@ from flask import Flask
 import easytrader
 import json
 
+import aiohttp
+import asyncio
+
+from gevent import monkey
+from gevent.pywsgi import WSGIServer
+
+monkey.patch_all()
+
 app = Flask(__name__)
+app.config.update(DEBUG=True)
 
 global g_user,g_securityID
 g_user = ''
@@ -77,7 +86,7 @@ def dealToday():
 def position():
 	rst = 'False'
 	try:
-		rst = str(g_user.balance)
+		rst = str(g_user.position)
 	except Exception as e:
 		return rst
 	return rst
@@ -119,6 +128,17 @@ def sell(stockID, price, amount, securityID):
 def hello():
 	return 'hello'
 
+import time	
+@app.route('/asyn')
+def test_asyn_one():
+    asyncTest()
+    return 'true'
+
+def asyncTest():
+	time.sleep(15)
+	print('hello asyn')
 if __name__ == '__main__':
-	init0()
+	#init0()
 	app.run(host='0.0.0.0', port=80,threaded=True,debug=True)
+	#http_server = WSGIServer(('', 80), app)
+	#http_server.serve_forever()

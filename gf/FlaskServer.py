@@ -8,6 +8,8 @@ import asyncio
 from gevent import monkey
 from gevent.pywsgi import WSGIServer
 
+from mail import *
+
 monkey.patch_all()
 
 app = Flask(__name__)
@@ -37,6 +39,11 @@ def init(securityID):
 	if securityID != str(g_securityID):
 		return rst
 	return init0()	
+
+@app.route('/')
+def root():
+	rst = 'Fighting, 18516391949'
+	return rst
 	
 @app.route('/h')
 @app.route('/help')
@@ -46,8 +53,17 @@ def help():
 			/position </br> \
 			/entrust/today </br> \
 			/deal/today </br> \
+			/ipo/today </br> \
 			/buy/stockID/price/amount/securityID </br> \
 			/sell/stockID/price/amount/securityID </br> \
+			'
+	return rst
+	
+@app.route('/s')
+@app.route('/servers')
+def servers():
+	rst = 'aws linux -> 52.79.43.219 </br> \
+			aws windows -> 13.124.41.247 </br> \
 			'
 	return rst
 	
@@ -61,6 +77,16 @@ def balance():
 		return rst
 	return rst
 
+@app.route('/it')
+@app.route('/ipo/today')
+def ipoToday():
+	rst = 'False'
+	try:
+		rst = str(g_user.get_ipo_info())
+	except Exception as e:
+		return rst
+	return rst	
+	
 @app.route('/et')
 @app.route('/entrust/today')
 def entrust():
@@ -89,6 +115,41 @@ def position():
 		rst = str(g_user.position)
 	except Exception as e:
 		return rst
+	return rst
+	
+@app.route('/sm/<msg>/<securityID>')	
+@app.route('/sendmsg/<msg>/<securityID>')
+def sendMsg(msg,securityID):
+	rst = 'False'
+	if securityID != str(g_securityID):
+		return rst
+	try:
+		send_139_email(subject=str(msg), message='')
+		rst = 'True'
+	except Exception as e:
+		pass
+	return rst
+	
+@app.route('/bR01/<securityID>')
+@app.route('/buyR01/<securityID>')
+def buyR01(securityID):
+	rst = 'False'
+	if securityID != str(g_securityID):
+		return rst
+
+	try:
+		aviliable_money = user.balance[0]['可用资金']
+		if aviliable_money > 1000:
+			sell_amount = int(aviliable_money / 1000)*10
+			result = g_user.sell('131810',1.0, sell_amount);
+			rst = str(result)
+			print(rst)
+		else:
+			rst = 'No enough money for r-001'
+			print (rst)
+		return str(rst)
+	except Exception as e:
+		pass
 	return rst
 	
 @app.route('/b/<stockID>/<price>/<amount>/<securityID>')
@@ -138,7 +199,7 @@ def asyncTest():
 	time.sleep(15)
 	print('hello asyn')
 if __name__ == '__main__':
-	#init0()
+	init0()
 	app.run(host='0.0.0.0', port=80,threaded=True,debug=True)
 	#http_server = WSGIServer(('', 80), app)
 	#http_server.serve_forever()

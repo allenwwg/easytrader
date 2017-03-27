@@ -7,7 +7,7 @@ from datetime import *
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
-
+	
 def send_email(user='allenwwg', pwd='this1@dog', recipient='wenguang.wang@intergraph.com', subject='mail test', body=''):
     gmail_user = user
     gmail_pwd = pwd
@@ -44,11 +44,33 @@ def send_email(user='allenwwg', pwd='this1@dog', recipient='wenguang.wang@interg
         print('successfully sent the mail')
     except Exception as e:
         print(e)
-def send_163_email(subject,message):
-    import smtplib
-    from email.mime.text import MIMEText
-    from email.header import Header
+def send_139_email(subject,message):
+    '''
+    记得请先开启邮箱的SMTP服务
+    '''
+    ## 发送邮件
+    sender = 'allenwwg@139.com' #发送的邮箱
+    receiver = 'allenwwg@139.com;wenguang.wang@intergraph.com' #要接受的邮箱（注:测试中发送其他邮箱会提示错误）
+    smtpserver = 'smtp.139.com' 
+    username = 'allenwwg@139.com' #你的邮箱账号
+    password = 'this1@dog' #你的邮箱密码
 
+    msg = MIMEText(str(message),'plain','utf-8') #中文需参数‘utf-8'，单字节字符不需要
+    msg['Subject'] = Header(subject, 'utf-8') #邮件主题
+    msg['to'] = receiver      
+    msg['from'] = sender    #自己的邮件地址 
+
+    smtp = smtplib.SMTP()
+    try :
+        smtp.connect(smtpserver) # 链接
+        smtp.login(username, password) # 登陆
+        smtp.sendmail(sender, receiver, msg.as_string()) #发送
+        print('邮件发送成功')
+    except Exception as e:
+        print('邮件发送失败')
+        print(e)
+    smtp.quit() # 结束
+def send_163_email(subject,message):
     '''
     记得请先开启邮箱的SMTP服务
     '''
@@ -76,9 +98,6 @@ def send_163_email(subject,message):
     smtp.quit() # 结束
 	
 def send_qq_email(subject,message):
-    import smtplib
-    from email.mime.text import MIMEText
-    from email.header import Header
     ## 发送邮件
     sender = 'allenwwg@qq.com' #发送的邮箱
     receiver = 'wenguang.wang@intergraph.com' #要接受的邮箱（注:测试中发送其他邮箱会提示错误）
@@ -104,4 +123,5 @@ def send_qq_email(subject,message):
 if __name__ == '__main__':
     #send_email(subject=u'Get EventLog__:2016-11-09 14:50:49:今日总成交合约数量10，超过限制10')
 	#send_qq_email(subject='Info from JoinQuant', message="test mail")
-	send_163_email(subject='Info from JoinQuant', message="test mail")
+	#send_163_email(subject='Info from JoinQuant', message="test mail")
+	send_139_email(subject='Info from JoinQuant', message="test mail")

@@ -17,7 +17,7 @@ app.config.update(DEBUG=True)
 
 global g_user,g_securityID
 g_user = ''
-g_securityID = 'taurus'
+g_securityID = ''
 
 def init0():
 	inited = True

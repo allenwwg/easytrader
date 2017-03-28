@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
 	
-def send_email(user='allenwwg', pwd='this1@dog', recipient='wenguang.wang@intergraph.com', subject='mail test', body=''):
+def send_email(user='', pwd='', recipient='', subject='mail test', body=''):
     gmail_user = user
     gmail_pwd = pwd
     FROM = user
@@ -50,10 +50,10 @@ def send_139_email(subject,message):
     '''
     ## 发送邮件
     sender = 'allenwwg@139.com' #发送的邮箱
-    receiver = 'allenwwg@139.com;wenguang.wang@intergraph.com' #要接受的邮箱（注:测试中发送其他邮箱会提示错误）
+    receiver = 'xxx@139.com;' #要接受的邮箱（注:测试中发送其他邮箱会提示错误）
     smtpserver = 'smtp.139.com' 
-    username = 'allenwwg@139.com' #你的邮箱账号
-    password = 'this1@dog' #你的邮箱密码
+    username = 'xxx@139.com' #你的邮箱账号
+    password = '' #你的邮箱密码
 
     msg = MIMEText(str(message),'plain','utf-8') #中文需参数‘utf-8'，单字节字符不需要
     msg['Subject'] = Header(subject, 'utf-8') #邮件主题
@@ -76,10 +76,10 @@ def send_163_email(subject,message):
     '''
     ## 发送邮件
     sender = 'allenwwg@163.com' #发送的邮箱
-    receiver = 'wenguang.wang@intergraph.com' #要接受的邮箱（注:测试中发送其他邮箱会提示错误）
+    receiver = '' #要接受的邮箱（注:测试中发送其他邮箱会提示错误）
     smtpserver = 'smtp.163.com' 
-    username = 'allenwwg@163.com' #你的邮箱账号
-    password = '36740s' #你的邮箱密码
+    username = 'xxx@163.com' #你的邮箱账号
+    password = '' #你的邮箱密码
 
     msg = MIMEText(str(message),'plain','utf-8') #中文需参数‘utf-8'，单字节字符不需要
     msg['Subject'] = Header(subject, 'utf-8') #邮件主题
@@ -100,10 +100,10 @@ def send_163_email(subject,message):
 def send_qq_email(subject,message):
     ## 发送邮件
     sender = 'allenwwg@qq.com' #发送的邮箱
-    receiver = 'wenguang.wang@intergraph.com' #要接受的邮箱（注:测试中发送其他邮箱会提示错误）
+    receiver = 'xx' #要接受的邮箱（注:测试中发送其他邮箱会提示错误）
     smtpserver = 'smtp.qq.com' 
     username = 'allenwwg@qq.com' #你的邮箱账号
-    password = 'gtpkcgbrnplibjcf' #你的邮箱授权码。一个16位字符串
+    password = '' #你的邮箱授权码。一个16位字符串
 
     msg = MIMEText(str(message),'plain','utf-8') #中文需参数‘utf-8'，单字节字符不需要
     msg['Subject'] = Header(subject, 'utf-8') #邮件主题

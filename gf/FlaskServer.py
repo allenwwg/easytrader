@@ -1,9 +1,14 @@
+# encoding: UTF-8
+import atexit
 from flask import Flask
 import easytrader
 import json
-
-import aiohttp
-import asyncio
+from logger import *
+from apscheduler.schedulers.background import BackgroundScheduler
+import time
+from datetime import *	 
+#import aiohttp
+#import asyncio
 
 from gevent import monkey
 from gevent.pywsgi import WSGIServer
@@ -13,24 +18,32 @@ from mail import *
 monkey.patch_all()
 
 app = Flask(__name__)
-app.config.update(DEBUG=True)
+app.config.update(DEBUG=False)
 
 global g_user,g_securityID
 g_user = ''
-g_securityID = ''
+g_securityID = 'taurus'
 
 def init0():
+	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
 	inited = True
+	
 	try:
 		global g_user
 		#if g_user == '':
 		g_user = easytrader.use('yh',debug=False)
 		g_user.prepare('u:\yh.json')
-		print('YinHe config initialized')
+		#print(str(inited) + ': YinHe config initialized')
 	except Exception as e:
 		print(e)
 		inited = False
-	return str(inited)
+	msg0 = '{0}: YinHe config initialized @ {1}'	
+	msg0 = msg0.format(str(inited), dateTime())
+	print(msg0)
+	
+	sendMsg(msg=msg0, securityID = g_securityID)
+	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
+	return msg0
 	
 @app.route('/i/<securityID>')
 @app.route('/init/<securityID>')
@@ -130,7 +143,7 @@ def sendMsg(msg,securityID):
 		pass
 	return rst
 	
-@app.route('/bR01/<securityID>')
+@app.route('/br01/<securityID>')
 @app.route('/buyR01/<securityID>')
 def buyR01(securityID):
 	rst = 'False'
@@ -138,18 +151,60 @@ def buyR01(securityID):
 		return rst
 
 	try:
-		aviliable_money = user.balance[0]['可用资金']
+		aviliable_money = g_user.balance[0]['可用资金']
 		if aviliable_money > 1000:
 			sell_amount = int(aviliable_money / 1000)*10
 			result = g_user.sell('131810',1.0, sell_amount);
-			rst = str(result)
+			rst = 'True:' + ' ' + str(result)
 			print(rst)
 		else:
-			rst = 'No enough money for r-001'
+			rst = 'False:' + ' ' + 'No enough money for r-001'
 			print (rst)
-		return str(rst)
 	except Exception as e:
 		pass
+	#sendMsg(msg=str(rst), securityID = g_securityID)
+	return rst
+	
+@app.route('/ai/<securityID>')
+@app.route('/autoIpo/<securityID>')
+def autoIpo(securityID):
+	rst = 'False'
+	if securityID != str(g_securityID):
+		return rst
+
+	try:
+		#get ipo information
+		ipoInfo = g_user.get_ipo_info()
+		print(str(ipoInfo))
+		fire_log(str(ipoInfo)+'\n')
+
+		debug_info=''
+		today_ipo = str(ipoInfo[0])
+
+		if len(today_ipo):
+			ipo_arr = today_ipo.split('\n')
+			arr_len = len(ipo_arr)
+			
+			for index in range(arr_len):
+				if index==0:
+				   continue
+				ipoInfo = ipo_arr[index]
+				ipo = ipoInfo.split('  ')
+				if(len(ipo)>5 and ipo[4]!=''):
+					print('{0},{1},{2}\n'.format(ipo[1],ipo[3],ipo[4]))
+					r1 = g_user.buy(stock_code = ipo[1],price = float(ipo[3]),amount = int(ipo[4]))
+					debug_info = debug_info+'\n'+str(r1)
+					rst = 'True'
+		if debug_info == '':
+			debug_info = "No IPO Today"
+		print(debug_info)
+		fire_log(debug_info+'\n')
+		rst = rst + ": " + debug_info
+	except Exception as e:
+		rst = str(e)
+	
+	#sendMsg(msg=str(rst), securityID = g_securityID)
+	
 	return rst
 	
 @app.route('/b/<stockID>/<price>/<amount>/<securityID>')
@@ -184,12 +239,62 @@ def sell(stockID, price, amount, securityID):
 	except Exception as e:
 		return rst
 	return rst
+
+@app.route('/datetime')
+def dateTime():
+	return '{0} {1}'.format(datetime.now().date().isoformat(), datetime.now().time().isoformat())
+
+@app.route('/dr')
+@app.route('/dor01')
+def doR01():
+	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
+	print('Doing R01 job @ {0}\n'.format(dateTime()))
+	rst = buyR01(str(g_securityID))
+	doneMsg = '{0}: Done R01 job @ {1}\n'.format(rst,dateTime())
+	print(doneMsg)
+	sendMsg(msg=doneMsg, securityID = g_securityID)
+	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
+	return doneMsg
+@app.route('/di')	
+@app.route('/doipo')	
+def doIpo():
+	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
+	print('Doing Ipo job @ {0}.....\n'.format(dateTime()))
+	rst = autoIpo(str(g_securityID))
+	doneMsg = '{0}: Done Ipo job @ {1}.....\n'.format(rst, dateTime())
+	print(doneMsg)
+	sendMsg(msg=doneMsg, securityID = g_securityID)
+	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
+	return doneMsg
+
+def balanceReport():
+	sendMsg(balance(),'')
 	
+def schedule():
+	scheduler = BackgroundScheduler()
+	
+	#do init trader
+	scheduler.add_job(init0, 'cron', day_of_week='1-5', hour='9',minute = '1')
+	scheduler.add_job(init0, 'cron', day_of_week='1-5', hour='12',minute = '50')
+	
+	#do Ipo job at 9:35 from Monday to Friday
+	scheduler.add_job(doIpo, 'cron', day_of_week='1-5', hour='9',minute = '35',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
+	
+	#do R01 job at 14:50 from Monday to Friday
+	scheduler.add_job(doR01, 'cron', day_of_week='1-5', hour='14',minute = '50',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
+	
+	#do after trading report from Monday to Friday
+	scheduler.add_job(balanceReport, 'cron', day_of_week='1-5', hour='15',minute = '1',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
+	
+	#for j in scheduler.get_jobs():
+	#	j.coalesce=True
+	scheduler.start()
+	# Shutdown your cron thread if the web process is stopped
+	atexit.register(lambda: scheduler.shutdown(wait=False))
 @app.route('/hello')
 def hello():
 	return 'hello'
 
-import time	
 @app.route('/asyn')
 def test_asyn_one():
     asyncTest()
@@ -198,8 +303,11 @@ def test_asyn_one():
 def asyncTest():
 	time.sleep(15)
 	print('hello asyn')
+
+
 if __name__ == '__main__':
 	init0()
-	app.run(host='0.0.0.0', port=80,threaded=True,debug=True)
-	#http_server = WSGIServer(('', 80), app)
-	#http_server.serve_forever()
+	schedule()
+	#app.run(host='0.0.0.0', port=80,threaded=True,debug=True)
+	http_server = WSGIServer(('', 80), app)
+	http_server.serve_forever()

@@ -2,6 +2,7 @@
 import atexit
 from flask import Flask
 import easytrader
+from easytrader import helpers
 import json
 from logger import *
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -88,7 +89,7 @@ def balance():
 		rst = str(g_user.balance)
 	except Exception as e:
 		return rst
-	return rst
+	return rst.replace(',','</br>')	
 
 @app.route('/it')
 @app.route('/ipo/today')
@@ -108,7 +109,7 @@ def entrust():
 		rst = str(g_user.entrust)
 	except Exception as e:
 		return rst
-	return rst
+	return rst.replace('}, {','</br>')	
 	
 @app.route('/dt')
 @app.route('/deal/today')
@@ -118,7 +119,7 @@ def dealToday():
 		rst = str(g_user.current_deal)
 	except Exception as e:
 		return rst
-	return rst	
+	return rst.replace('}, {','</br>')	
 	
 @app.route('/p')
 @app.route('/position')
@@ -128,7 +129,7 @@ def position():
 		rst = str(g_user.position)
 	except Exception as e:
 		return rst
-	return rst
+	return rst.replace('}, {','</br>')	
 	
 @app.route('/sm/<msg>/<securityID>')	
 @app.route('/sendmsg/<msg>/<securityID>')
@@ -167,7 +168,7 @@ def buyR01(securityID):
 	
 @app.route('/ai/<securityID>')
 @app.route('/autoIpo/<securityID>')
-def autoIpo(securityID):
+def autoYhIpo(securityID):
 	rst = 'False'
 	if securityID != str(g_securityID):
 		return rst
@@ -206,7 +207,34 @@ def autoIpo(securityID):
 	#sendMsg(msg=str(rst), securityID = g_securityID)
 	
 	return rst
-	
+
+@app.route('/gfIpo/<securityID>')
+def autoGfIpo(securityID):	
+	user = easytrader.use('gf',debug=False)
+	user.prepare('u:\gf.json')
+	marketValue = user.balance['data'][0]['market_value']
+	enableBalance = user.balance['data'][0]['enable_balance']
+	total = float(marketValue) + float(enableBalance)
+	msg = 'gf, '+ marketValue +', '+ enableBalance + ', ' + str(total) + ', ' + datetime.now().date().isoformat()
+	ipo_data = helpers.get_today_ipo_data()
+	ipo_limit = user.today_ipo_limit()
+	Dic_amount = {'上海':0.0,'深圳':0.0}
+	for limit in ipo_limit['data']:
+		Dic_amount[limit['exchange_type_dict']] = float(limit['enable_amount'])
+		
+	for data in ipo_data:
+		apply_code = data['apply_code']
+		price = data['price']
+		stock_code = data['stock_code']
+		amount = 0
+		if 'SZ' in stock_code:
+			amount = Dic_amount['深圳']
+		if 'SH' in stock_code:
+			amount = Dic_amount['上海']
+		if amount > 0:
+			user.buy(apply_code,float(price),amount)
+		
+	user.exit()
 @app.route('/b/<stockID>/<price>/<amount>/<securityID>')
 @app.route('/buy/<stockID>/<price>/<amount>/<securityID>')
 def buy(stockID, price, amount, securityID):
@@ -258,33 +286,48 @@ def doR01():
 @app.route('/di')	
 @app.route('/doipo')	
 def doIpo():
-	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
-	print('Doing Ipo job @ {0}.....\n'.format(dateTime()))
-	rst = autoIpo(str(g_securityID))
-	doneMsg = '{0}: Done Ipo job @ {1}.....\n'.format(rst, dateTime())
-	print(doneMsg)
-	sendMsg(msg=doneMsg, securityID = g_securityID)
-	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
-	return doneMsg
+	doneMsg = ''
+	try:
+		print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
+		print('Doing YinHe Ipo job @ {0}.....\n'.format(dateTime()))
+		rst = autoYhIpo(str(g_securityID))
+		doneMsgYh = '{0}\n: Done YinHe Ipo job @ {1}.....\n'.format(rst, dateTime())
+		print(doneMsgYh)
+		
+		print('Doing GuangFa Ipo job @ {0}.....\n'.format(dateTime()))
+		rst = autoGfIpo(str(g_securityID))
+		doneMsgGf = '{0}\n: Done GuangFa Ipo job @ {1}.....\n'.format(rst, dateTime())
+		print(doneMsgGf)
+		
+		doneMsg = doneMsgYh + '\n' + doneMsgGf
+		sendMsg(msg=doneMsg, securityID = g_securityID)
+		print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
+	except Exception as e:
+		doneMsg = str(e)
+	return doneMsg.replace('\n','</br>')
 
 def balanceReport():
-	sendMsg(balance(),'')
+	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
+	print('Sending balance job @ {0}.....\n'.format(dateTime()))
+	rst = sendMsg(balance(),g_securityID)
+	doneMsgGf = '{0}\n: Done sending balance job @ {1}.....\n'.format(rst, dateTime())
+	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
 	
 def schedule():
 	scheduler = BackgroundScheduler()
 	
 	#do init trader
-	scheduler.add_job(init0, 'cron', day_of_week='1-5', hour='9',minute = '1')
-	scheduler.add_job(init0, 'cron', day_of_week='1-5', hour='12',minute = '50')
+	scheduler.add_job(init0, 'cron', day_of_week='0-4', hour='9',minute = '1',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
+	scheduler.add_job(init0, 'cron', day_of_week='0-4', hour='12',minute = '50',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
 	
 	#do Ipo job at 9:35 from Monday to Friday
-	scheduler.add_job(doIpo, 'cron', day_of_week='1-5', hour='9',minute = '35',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
+	scheduler.add_job(doIpo, 'cron', day_of_week='0-4', hour='9',minute = '35',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
 	
 	#do R01 job at 14:50 from Monday to Friday
-	scheduler.add_job(doR01, 'cron', day_of_week='1-5', hour='14',minute = '50',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
+	scheduler.add_job(doR01, 'cron', day_of_week='0-4', hour='14',minute = '50',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
 	
 	#do after trading report from Monday to Friday
-	scheduler.add_job(balanceReport, 'cron', day_of_week='1-5', hour='15',minute = '1',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
+	scheduler.add_job(balanceReport, 'cron', day_of_week='0-4', hour='15',minute = '1',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
 	
 	#for j in scheduler.get_jobs():
 	#	j.coalesce=True

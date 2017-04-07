@@ -5,7 +5,9 @@ import easytrader
 from easytrader import helpers
 import json
 from logger import *
-from apscheduler.schedulers.background import BackgroundScheduler
+#from apscheduler.schedulers.background import BackgroundScheduler
+from flask_apscheduler import APScheduler
+#from flask_apscheduler import utils
 import time
 from datetime import *	 
 #import aiohttp
@@ -312,30 +314,88 @@ def balanceReport():
 	rst = sendMsg(balance(),g_securityID)
 	doneMsgGf = '{0}\n: Done sending balance job @ {1}.....\n'.format(rst, dateTime())
 	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
+
+class Config(object):
+    JOBS = [
+        {
+            'id': 'InitJob1',
+            'func': 'FlaskServer:init0',
+            'trigger': {
+				'type': 'cron',
+				'minute': 1,
+				'hour': 9,
+				'day_of_week' : '0-4',
+				'misfire_grace_time' : 90
+            }
+        },
+		{
+            'id': 'InitJob2',
+            'func': 'FlaskServer:init0',
+            'trigger': {
+				'type': 'cron',
+				'minute': 50,
+				'hour': 12,
+				'day_of_week' : '0-4',
+				'misfire_grace_time' : 90
+            }
+        },
+		{
+            'id': 'IpoJob',
+            'func': 'FlaskServer:doIpo',
+            'trigger': {
+				'type': 'cron',
+				'minute': 35,
+				'hour': 9,
+				'day_of_week' : '0-4',
+				'misfire_grace_time' : 90
+            }
+        },
+		{
+            'id': 'R01Job',
+            'func': 'FlaskServer:doR01',
+            'trigger': {
+				'type': 'cron',
+				'minute': 50,
+				'hour': 14,
+				'day_of_week' : '0-4',
+				'misfire_grace_time' : 90
+            }
+        },
+		{
+            'id': 'BalanceJob',
+            'func': 'FlaskServer:balanceReport',
+            'trigger': {
+				'type': 'cron',
+				'minute': 1,
+				'hour': 15,
+				'day_of_week' : '0-4',
+				'misfire_grace_time' : 90
+            }
+        },
+		{
+            'id': 'helloJob',
+            'func': 'FlaskServer:hello',
+            'trigger': {
+				'type': 'cron',
+				'minute': 53,
+				'hour': 9,
+				'day_of_week' : '0-4',
+				'misfire_grace_time' : 90
+            }
+        }
+    ]
+
 	
-def schedule():
-	scheduler = BackgroundScheduler()
-	
-	#do init trader
-	scheduler.add_job(init0, 'cron', day_of_week='0-4', hour='9',minute = '1',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
-	scheduler.add_job(init0, 'cron', day_of_week='0-4', hour='12',minute = '50',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
-	
-	#do Ipo job at 9:35 from Monday to Friday
-	scheduler.add_job(doIpo, 'cron', day_of_week='0-4', hour='9',minute = '35',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
-	
-	#do R01 job at 14:50 from Monday to Friday
-	scheduler.add_job(doR01, 'cron', day_of_week='0-4', hour='14',minute = '50',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
-	
-	#do after trading report from Monday to Friday
-	scheduler.add_job(balanceReport, 'cron', day_of_week='0-4', hour='15',minute = '1',replace_existing=True,misfire_grace_time=900,coalesce=True, max_instances = 3)
-	
-	#for j in scheduler.get_jobs():
-	#	j.coalesce=True
+def initSchedule():
+	app.config.from_object(Config())
+	scheduler = APScheduler()
+	scheduler.init_app(app)
 	scheduler.start()
-	# Shutdown your cron thread if the web process is stopped
-	atexit.register(lambda: scheduler.shutdown(wait=False))
+	print("Scheduler Initialized\n")
+
 @app.route('/hello')
 def hello():
+	print('hello')
 	return 'hello'
 
 @app.route('/asyn')
@@ -349,8 +409,9 @@ def asyncTest():
 
 
 if __name__ == '__main__':
+	
 	init0()
-	schedule()
-	#app.run(host='0.0.0.0', port=80,threaded=True,debug=True)
-	http_server = WSGIServer(('', 80), app)
-	http_server.serve_forever()
+	initSchedule()
+	app.run(host='localhost', port=80,threaded=True,debug=True)
+	#http_server = WSGIServer(('', 80), app)
+	#http_server.serve_forever()

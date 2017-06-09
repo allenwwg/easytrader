@@ -9,6 +9,7 @@ from logger import *
 from flask_apscheduler import APScheduler
 #from flask_apscheduler import utils
 import time
+from time import sleep
 from datetime import *	 
 #import aiohttp
 #import asyncio
@@ -23,55 +24,66 @@ monkey.patch_all()
 app = Flask(__name__)
 app.config.update(DEBUG=False)
 
-global g_user,g_securityID
-g_user = ''
+#yinhe config
+global g_yhUser, g_gfUser, g_securityID
+g_yhUser = ''
+g_gfUser = ''
 g_securityID = 'taurus'
 
-def init0():
+def init0(broker = 'yh'):
 	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
 	inited = True
 	
 	try:
-		global g_user
-		#if g_user == '':
-		g_user = easytrader.use('yh',debug=False)
-		g_user.prepare('u:\yh.json')
+		global g_yhUser, g_gfUser
+		if broker == 'yh':
+			g_yhUser = easytrader.use('yh',debug=False)
+			g_yhUser.prepare('u:\yh.json')
+		
+		if broker == 'gf':
+			g_gfUser = easytrader.use('gf',debug=False)
+			g_gfUser.prepare('u:\gf.json')
+		
 		#print(str(inited) + ': YinHe config initialized')
 	except Exception as e:
 		print(e)
 		inited = False
-	msg0 = '{0}: YinHe config initialized @ {1}'	
+	msg0 = '{0}: config initialized @ {1}'	
 	msg0 = msg0.format(str(inited), dateTime())
 	print(msg0)
 	
-	sendMsg(msg=msg0, securityID = g_securityID)
+	_sendMsg(msg=msg0)
 	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
 	return msg0
 	
-@app.route('/i/<securityID>')
-@app.route('/init/<securityID>')
-def init(securityID):
+@app.route('/i/<broker>/<securityID>')
+@app.route('/init/<broker>/<securityID>')
+def init(broker, securityID):
 	rst = 'False'
 	if securityID != str(g_securityID):
 		return rst
-	return init0()	
+	return init0(broker)	
 
 @app.route('/')
 def root():
-	rst = 'Fighting, 18516391949'
+	rst = 'Fighting, 18516391949, 18521007606'
 	return rst
 	
 @app.route('/h')
 @app.route('/help')
 def help():
-	rst = '/help </br> \
-			/balance </br> \
-			/position </br> \
-			/entrust/today </br> \
-			/deal/today </br> \
-			/ipo/today </br> \
-			/buy/stockID/price/amount/securityID </br> \
-			/sell/stockID/price/amount/securityID </br> \
+	rst = 'help -> /help </br> \
+			balance -> /balance </br> \
+			position -> /position </br> \
+			today entrust -> /entrust/today </br> \
+			today deal -> /deal/today </br> \
+			today ipo -> /ipo/today </br> \
+			buy -> /buy/stockID/price/amount/securityID </br> \
+			sell -> /sell/stockID/price/amount/securityID </br> \
+			auto Yh IPO -> /ai/securityID </br> \
+			auto GF IPO -> /gi/securityID </br> \
+			send message -> /sm/msg/securityID </br> \
+			servers -> /servers </br> \
 			'
 	return rst
 	
@@ -83,68 +95,128 @@ def servers():
 			'
 	return rst
 	
-@app.route('/b')
-@app.route('/balance')
-def balance():
+@app.route('/b/<broker>')
+@app.route('/balance/<broker>')
+def balance(broker):
+	CheckLogin(broker)
 	rst = 'False'
 	try:
-		rst = str(g_user.balance)
+		if broker == 'yh':
+			rst = str(g_yhUser.balance)
+		if broker == 'gf':
+			rst = str(g_gfUser.balance)
 	except Exception as e:
 		return rst
 	return rst.replace(',','</br>')	
 
-@app.route('/it')
-@app.route('/ipo/today')
-def ipoToday():
+@app.route('/it/<broker>')
+@app.route('/ipo/today<broker>')
+def ipoToday(broker):
+	CheckLogin(broker)
 	rst = 'False'
 	try:
-		rst = str(g_user.get_ipo_info())
+		if broker == 'yh':
+			rst = str(g_yhUser.get_ipo_info())
+		if broker == 'gf':
+			rst =  str(g_gfUser.today_ipo_limit())
+
 	except Exception as e:
 		return rst
 	return rst	
 	
-@app.route('/et')
-@app.route('/entrust/today')
-def entrust():
+@app.route('/et/<broker>')
+@app.route('/entrust/today/<broker>')
+def entrust(broker = 'yh'):
+	CheckLogin(broker)
 	rst = 'False'
 	try:
-		rst = str(g_user.entrust)
+		if broker == 'yh':
+			rst = str(g_yhUser.entrust)
+		if broker == 'gf':
+			rst = str(g_gfUser.entrust)
+			
 	except Exception as e:
 		return rst
 	return rst.replace('}, {','</br>')	
 	
-@app.route('/dt')
-@app.route('/deal/today')
-def dealToday():
+@app.route('/dt/<broker>')
+@app.route('/deal/today/<broker>')
+def dealToday(broker = 'yh'):
+	CheckLogin()
 	rst = 'False'
 	try:
-		rst = str(g_user.current_deal)
+		if broker == 'yh':
+			rst = str(g_yhUser.current_deal)
+		if broker == 'gf':
+			rst = str(g_gfUser.current_deal)
 	except Exception as e:
 		return rst
 	return rst.replace('}, {','</br>')	
 	
-@app.route('/p')
-@app.route('/position')
-def position():
+@app.route('/p/<broker>')
+@app.route('/position/<broker>')
+def position(broker = 'yh'):
 	rst = 'False'
 	try:
-		rst = str(g_user.position)
+		if broker == 'yh':
+			rst = str(g_yhUser.position)
+		if broker == 'gf':
+			rst = str(g_gfUser.position['data'])
 	except Exception as e:
 		return rst
 	return rst.replace('}, {','</br>')	
-	
-@app.route('/sm/<msg>/<securityID>')	
-@app.route('/sendmsg/<msg>/<securityID>')
-def sendMsg(msg,securityID):
-	rst = 'False'
-	if securityID != str(g_securityID):
-		return rst
+
+@app.route('/hl/<broker>')
+@app.route('/holdlist/<broker>')
+def holdingList(broker = 'yh'):
+	CheckLogin(broker)
+	codes = []
 	try:
-		send_139_email(subject=str(msg), message='')
+		if broker == 'yh':
+			positions = g_yhUser.position
+			for p in positions:
+				ext = '.XSHG'
+				if p['交易市场'] == '深A':
+					ext = '.XSHE'
+				code = p['证券代码'] + ext
+				codes.append(code)
+		if broker == 'gf':
+			positions = g_gfUser.position['data']
+			for p in positions:
+				ext = '.XSHG'
+				if p['exchange_type_dict'] != '上海':
+					ext = '.XSHE'
+				code = p['stock_code'] + ext
+				codes.append(code)
+			
+	except Exception as e:
+		return False
+	return json.dumps(codes)
+
+
+def _sendMsg(msg):
+	rst = 'False'
+	try:
+		send_139_email(subject=str(msg),  message='')
 		rst = 'True'
 	except Exception as e:
 		pass
 	return rst
+	
+@app.route('/sm/<msg>/<tolist>/<securityID>')	
+@app.route('/sendmsg/<msg>/<tolist>/<securityID>')
+def sendMsgTo(msg, tolist, securityID='taurus'):
+	rst = 'False'
+	if securityID != str(g_securityID):
+		return rst
+	try:
+		#gigiEmail = '15900443703@139.com'
+		print(tolist)
+		send_139_email(subject=str(msg),  message='', to = str(tolist))
+		rst = 'True'
+	except Exception as e:
+		pass
+	return rst	
 	
 @app.route('/br01/<securityID>')
 @app.route('/buyR01/<securityID>')
@@ -154,10 +226,10 @@ def buyR01(securityID):
 		return rst
 
 	try:
-		aviliable_money = g_user.balance[0]['可用资金']
+		aviliable_money = g_yhUser.balance[0]['可用资金']
 		if aviliable_money > 1000:
 			sell_amount = int(aviliable_money / 1000)*10
-			result = g_user.sell('131810',1.0, sell_amount);
+			result = g_yhUser.sell('131810',1.0, sell_amount);
 			rst = 'True:' + ' ' + str(result)
 			print(rst)
 		else:
@@ -177,7 +249,7 @@ def autoYhIpo(securityID):
 
 	try:
 		#get ipo information
-		ipoInfo = g_user.get_ipo_info()
+		ipoInfo = g_yhUser.get_ipo_info()
 		print(str(ipoInfo))
 		fire_log(str(ipoInfo)+'\n')
 
@@ -195,7 +267,8 @@ def autoYhIpo(securityID):
 				ipo = ipoInfo.split('  ')
 				if(len(ipo)>5 and ipo[4]!=''):
 					print('{0},{1},{2}\n'.format(ipo[1],ipo[3],ipo[4]))
-					r1 = g_user.buy(stock_code = ipo[1],price = float(ipo[3]),amount = int(ipo[4]))
+					r1 = g_yhUser.buy(stock_code = ipo[1],price = float(ipo[3]),amount = int(ipo[4]))
+					sleep(0.5)
 					debug_info = debug_info+'\n'+str(r1)
 					rst = 'True'
 		if debug_info == '':
@@ -209,8 +282,11 @@ def autoYhIpo(securityID):
 	#sendMsg(msg=str(rst), securityID = g_securityID)
 	
 	return rst
+	
+def _sleep(sec):
+	sleep(sec)
 
-@app.route('/gfIpo/<securityID>')
+@app.route('/gi/<securityID>')
 def autoGfIpo(securityID):	
 	user = easytrader.use('gf',debug=False)
 	user.prepare('u:\gf.json')
@@ -224,6 +300,7 @@ def autoGfIpo(securityID):
 	for limit in ipo_limit['data']:
 		Dic_amount[limit['exchange_type_dict']] = float(limit['enable_amount'])
 		
+	rst = '';
 	for data in ipo_data:
 		apply_code = data['apply_code']
 		price = data['price']
@@ -234,12 +311,17 @@ def autoGfIpo(securityID):
 		if 'SH' in stock_code:
 			amount = Dic_amount['上海']
 		if amount > 0:
-			user.buy(apply_code,float(price),amount)
+			e = user.buy(apply_code,float(price),amount)
+			rst = rst + str(e)
+			sleep(0.5)
 		
 	user.exit()
-@app.route('/b/<stockID>/<price>/<amount>/<securityID>')
-@app.route('/buy/<stockID>/<price>/<amount>/<securityID>')
-def buy(stockID, price, amount, securityID):
+	return rst
+
+@app.route('/b/<broker>/<stockID>/<price>/<amount>/<securityID>')
+@app.route('/buy/<broker>/<stockID>/<price>/<amount>/<securityID>')
+def buy(broker, stockID, price, amount, securityID):
+	CheckLogin(broker)
 	rst = 'False'
 	if securityID != str(g_securityID):
 		return rst
@@ -248,28 +330,70 @@ def buy(stockID, price, amount, securityID):
 		print(str(stockID))
 		print(str(price))
 		print(str(amount))
-		rst = g_user.buy(str(stockID),float(price),int(amount))
+		if broker == 'yh':
+			rst = g_yhUser.buy(str(stockID),float(price),int(amount))
+		if broker == 'gf':
+			rst = g_gfUser.buy(str(stockID),float(price),int(amount))
+		_sleep(0.5)
+		return str(rst)
+	except Exception as e:
+		return rst
+
+	return rst
+	
+@app.route('/s/<broker>/<stockID>/<price>/<amount>/<securityID>')
+@app.route('/sell/<broker>/<stockID>/<price>/<amount>/<securityID>')
+def sell(broker, stockID, price, amount, securityID):
+	CheckLogin(broker)
+	if _positionExists(broker, stockID) == False:
+		return 'Not existing position for ' + stockID
+	rst = 'False'
+	if securityID != str(g_securityID):
+		return rst
+	try:
+		print(str(stockID))
+		print(str(price))
+		print(str(amount))
+		if(int(amount) == 0):
+			amount = _getPositionAmount(broker,stockID)
+		if broker == 'yh':
+			rst = g_yhUser.sell(str(stockID),float(price),int(amount))
+		if broker == 'gf':
+			rst = g_gfUser.sell(str(stockID),float(price),int(amount))
+		_sleep(0.5)
 		return str(rst)
 	except Exception as e:
 		return rst
 	return rst
 	
-@app.route('/s/<stockID>/<price>/<amount>/<securityID>')
-@app.route('/sell/<stockID>/<price>/<amount>/<securityID>')
-def sell(stockID, price, amount, securityID):
-	rst = 'False'
-	if securityID != str(g_securityID):
-		return rst
-	try:
-		print(str(stockID))
-		print(str(price))
-		print(str(amount))
-		rst = g_user.sell(str(stockID),float(price),int(amount))
-		return str(rst)
-	except Exception as e:
-		return rst
-	return rst
+def _positionExists(broker,stockID):
+	return stockID in str(holdingList(broker))
 
+@app.route('/amount/<broker>/<stockID>')
+def getStockAviliableAmout(broker,stockID):
+	return str(_getPositionAmount(broker, stockID))
+
+def _getPositionAmount(broker, stockID):
+	amount = 0
+	try:
+		if broker == 'yh':
+			positions = g_yhUser.position
+			for p in positions:
+				if p['证券代码'] == stockID:
+					amount = int(p['股份可用'])
+					break
+		if broker == 'gf':
+			positions = g_gfUser.position['data']
+			for p in positions:
+				if p['stock_code'] == stockID:
+					amount = int(p['enable_amount'])
+					break
+
+	except Exception as e:
+		return 0
+	
+	return amount
+	
 @app.route('/datetime')
 def dateTime():
 	return '{0} {1}'.format(datetime.now().date().isoformat(), datetime.now().time().isoformat())
@@ -315,6 +439,16 @@ def balanceReport():
 	doneMsgGf = '{0}\n: Done sending balance job @ {1}.....\n'.format(rst, dateTime())
 	print('>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n')
 
+def CheckLogin(broker = 'yh'):
+	if isLogin(broker) == False:
+		init0(broker)
+	
+def isLogin(broker = 'yh'):
+	rst = position(broker)
+	if rst == 'False':
+		return False
+	return True
+
 class Config(object):
     JOBS = [
         {
@@ -322,10 +456,10 @@ class Config(object):
             'func': 'FlaskServer:init0',
             'trigger': {
 				'type': 'cron',
-				'minute': 1,
+				'minute': 14,
 				'hour': 9,
 				'day_of_week' : '0-4',
-				'misfire_grace_time' : 90
+				'misfire_grace_time' : 10
             }
         },
 		{
@@ -336,7 +470,7 @@ class Config(object):
 				'minute': 50,
 				'hour': 12,
 				'day_of_week' : '0-4',
-				'misfire_grace_time' : 90
+				'misfire_grace_time' : 10
             }
         },
 		{
@@ -347,7 +481,7 @@ class Config(object):
 				'minute': 35,
 				'hour': 9,
 				'day_of_week' : '0-4',
-				'misfire_grace_time' : 90
+				'misfire_grace_time' : 10
             }
         },
 		{
@@ -355,10 +489,10 @@ class Config(object):
             'func': 'FlaskServer:doR01',
             'trigger': {
 				'type': 'cron',
-				'minute': 50,
+				'minute': 51,
 				'hour': 14,
 				'day_of_week' : '0-4',
-				'misfire_grace_time' : 90
+				'misfire_grace_time' : 10
             }
         },
 		{
@@ -369,7 +503,7 @@ class Config(object):
 				'minute': 1,
 				'hour': 15,
 				'day_of_week' : '0-4',
-				'misfire_grace_time' : 90
+				'misfire_grace_time' : 10
             }
         },
 		{
@@ -404,14 +538,15 @@ def test_asyn_one():
     return 'true'
 
 def asyncTest():
-	time.sleep(15)
+	time.sleep(1)
 	print('hello asyn')
 
 
 if __name__ == '__main__':
 	
-	init0()
+	init0('yh')
+	init0('gf')
 	initSchedule()
-	app.run(host='localhost', port=80,threaded=True,debug=True)
+	app.run(host='0.0.0.0', port=80,threaded=True,debug=True)
 	#http_server = WSGIServer(('', 80), app)
 	#http_server.serve_forever()
